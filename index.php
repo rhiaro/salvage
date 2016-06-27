@@ -148,7 +148,11 @@ function get_prefs($domain){
         "sal:tags": ["travel", "transport"]
       },
       {
-        "sal:name": "Other",
+        "sal:name": "Household",
+        "sal:tags": ["household"]
+      },
+      {
+        "sal:name": "All",
         "sal:tags": []
       },
       {
@@ -179,7 +183,7 @@ function get_week(){
   }else{
     $start = new DateTime("last Monday");
     $end = new DateTime("last Monday + 7 days - 1 minute");
-  }
+   }
   return array("start" => $start, "end" => $end);
 }
 
@@ -188,11 +192,11 @@ function sort_week($feed){
 
   $week = get_week();  
   $prefs = get_prefs("http://rhiaro.co.uk");
-  var_dump($prefs);
   
   $categories = array();
   
   foreach($feed["items"] as $i => $item){
+    
     $pub = new DateTime($item["published"]);
     if($pub > $week["start"] && $pub <= $week["end"]){
 
@@ -202,7 +206,6 @@ function sort_week($feed){
       if($cur == "$"){ // TODO: One day maybe do currency conversion...
         
         foreach($prefs["sal:categories"] as $cat){
-          var_dump($cat);
           $name = $cat["sal:name"];
           $tags = $cat["sal:tags"];
           if(!isset($categories[$name])){
@@ -214,7 +217,7 @@ function sort_week($feed){
           if(count($r) > 0){
             $categories[$name]["items"][] = $item;
             $categories[$name]["total"] += $amt;
-          }elseif(empty($tags)){ // Other
+          }elseif(empty($tags)){ // All
             $categories[$name]["items"][] = $item;
             $categories[$name]["total"] += $amt;
           }
@@ -235,14 +238,10 @@ function get_total($subset){
   return $total;
 }
 
-function under_weekly_budget($total, $domain="http://rhiaro.co.uk"){
+function budget_remaining($total, $domain="http://rhiaro.co.uk"){
   $prefs = get_prefs($domain);
   if(isset($prefs["sal:weeklyBudget"])){
-    if($prefs["sal:weeklyBudget"] >= $total){
-      return true;
-    }else{
-      return false;
-    }
+    return $prefs["sal:weeklyBudget"] - $total;
   }else{
     return null;
   }
@@ -299,12 +298,12 @@ $week = get_week();
 
       <?if(isset($asfeed)):?>
         <? $results = sort_week($asfeed); ?>
-
+        <? $left = budget_remaining(get_total($results)); ?>
         <h2>This week is <?=$week["start"]->format("jS M y")?> - <?=$week["end"]->format("jS M y")?></h2>
-        <?if(under_weekly_budget(get_total($results))):?>
-          <p class="win">You can spend more money this week!</p>
+        <?if($left > 0):?>
+          <p class="win">You can spend another $<?=number_format($left, 2)?> this week!</p>
         <?else:?>
-          <p class="fail">You are over budget, stop.</p>
+          <p class="fail">You are $<?=number_format($left, 2)?> over budget, stop.</p>
         <?endif?>
 
         <?foreach($results as $cat => $info):?>
