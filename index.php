@@ -279,6 +279,10 @@ if(isset($_GET['week'])){
 }else{
   $week = this_week();
 }
+$next = new DateTime($_GET['week']);
+$prev = new DateTime($_GET['week']);
+$next->modify("+ 7 days");
+$prev->modify("- 7 days");
 
 ?>
 <!doctype html>
@@ -312,6 +316,8 @@ if(isset($_GET['week'])){
         <p><label for="week" class="neat" placeholder="<?=$week["start"]->format("Y-m-d")?>" value="<?=$week["start"]->format("Y-m-d")?>">Date</label> 
           <input type="date" name="week" id="week" />
           <input type="submit" value="Get" />
+          <a href="?week=<?=$prev->format("j M Y")?>">&lt; Prev</a> 
+          <a href="?week=<?=$next->format("j M Y")?>">Next &gt;</a>
         </p>
       </form>
 
