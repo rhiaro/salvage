@@ -279,8 +279,8 @@ if(isset($_GET['week'])){
 }else{
   $week = this_week();
 }
-$next = new DateTime($_GET['week']);
-$prev = new DateTime($_GET['week']);
+$next = new DateTime($week["start"]->format("Y-m-d"));
+$prev = new DateTime($week["start"]->format("Y-m-d"));
 $next->modify("+ 7 days");
 $prev->modify("- 7 days");
 
@@ -313,11 +313,11 @@ $prev->modify("- 7 days");
 
       <form role="form" id="feed">
         <p><label for="url" class="neat">Feed</label> <input type="url" class="neat" id="url" name="url" value="<?=isset($_SESSION['url']) ? urldecode($_SESSION['url']) : "http://rhiaro.co.uk/stuff"?>" /></p>
-        <p><label for="week" class="neat" placeholder="<?=$week["start"]->format("Y-m-d")?>" value="<?=$week["start"]->format("Y-m-d")?>">Date</label> 
-          <input type="date" name="week" id="week" />
+        <p><label for="week" class="neat">Date</label> 
+          <input type="date" name="week" id="week" placeholder="<?=isset($week) ? $week["start"]->format("Y-m-d") : "yyyy-mm-dd"?>" value="<?=isset($week) ? $week["start"]->format("Y-m-d") : ""?>" />
           <input type="submit" value="Get" />
-          <a href="?week=<?=$prev->format("j M Y")?>">&lt; Prev</a> 
-          <a href="?week=<?=$next->format("j M Y")?>">Next &gt;</a>
+          <a href="?week=<?=$prev->format("Y-m-d")?>">&lt; Prev</a> 
+          <a href="?week=<?=$next->format("Y-m-d")?>">Next &gt;</a>
         </p>
       </form>
 
