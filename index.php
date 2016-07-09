@@ -229,6 +229,9 @@ function sort_week($feed, $week=null){
             $categories[$name] = array("total" => 0, "items" => array());
           }      
           // TODO: tags shouldn't be like this in feed
+          if(!is_array($item["tag"])){
+            $item["tag"] = array($item["tag"]);
+          }
           $r = array_intersect($tags, $item["tag"]);
           
           if(count($r) > 0){
