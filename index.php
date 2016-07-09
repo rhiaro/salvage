@@ -175,37 +175,32 @@ function get_prefs($domain){
 }
 
 function this_week(){
-  // PHP you so rad
-  $today = new DateTime();
-  if($today->format("D") == "Mon"){
-    $start = new DateTime("midnight today");
-    $end = new DateTime("midnight today + 7 days - 1 minute");
+  return week_of();
+}
+
+function week_of($date="today"){
+  // Weeks start at 00:00:00 Monday and end at 23:59:59 Sunday.
+
+  $cur = new DateTime($date);
+  $start = new DateTime($date);
+  $end = new DateTime($date);
+
+  if($cur->format("D") == "Mon"){
+    $start->modify("midnight today");
+    $end->modify("midnight today + 7 days - 1 minute");
   }else{
-    $start = new DateTime("last Monday");
-    $end = new DateTime("last Monday + 7 days - 1 minute");
-   }
+    $start->modify("last Monday");
+    $end->modify("last Monday + 7 days - 1 minute");
+  }
   return array("start" => $start, "end" => $end);
 }
 
-function decrement_week($weeks, $start, $end){
-  $weeks[] = array("start" => $start->sub(new DateInterval('P7D')), "end" => $end->sub(new DateInterval('P7D')));
-  return $weeks;
-}
-
-function all_weeks(){
-  $thisweek = this_week();
-  $all = array($thisweek);
-  if($thisweek["start"]->format("Y") == "2016"){
-    $all = decrement_week($all, $thisweek["start"], $thisweek["end"]);
-  }
-  var_dump($all);
-  return $all;
-}
-
-function sort_week($feed){
+function sort_week($feed, $week=null){
   global $_id;
 
-  $week = this_week();  
+  if(!isset($week)){
+    $week = this_week();  
+  }
   $prefs = get_prefs("http://rhiaro.co.uk");
   
   $categories = array();
@@ -277,7 +272,7 @@ if(isset($_SESSION['url'])){
   }
 }
 if(isset($_GET['week'])){
-  $week = $_GET['week'];
+  $week = week_of($_GET['week']);
 }else{
   $week = this_week();
 }
@@ -318,7 +313,7 @@ if(isset($_GET['week'])){
       </form>
 
       <?if(isset($asfeed)):?>
-        <? $results = sort_week($asfeed); ?>
+        <? $results = sort_week($asfeed, $week); ?>
         <? $left = budget_remaining($results["total"]); ?>
         <h2>This week is <?=$week["start"]->format("jS M y")?> - <?=$week["end"]->format("jS M y")?></h2>
         <?if($left > 0):?>
