@@ -174,7 +174,7 @@ function get_prefs($domain){
   }
 }
 
-function get_week(){
+function this_week(){
   // PHP you so rad
   $today = new DateTime();
   if($today->format("D") == "Mon"){
@@ -187,13 +187,30 @@ function get_week(){
   return array("start" => $start, "end" => $end);
 }
 
+function decrement_week($weeks, $start, $end){
+  $weeks[] = array("start" => $start->sub(new DateInterval('P7D')), "end" => $end->sub(new DateInterval('P7D')));
+  return $weeks;
+}
+
+function all_weeks(){
+  $thisweek = this_week();
+  $all = array($thisweek);
+  if($thisweek["start"]->format("Y") == "2016"){
+    $all = decrement_week($all, $thisweek["start"], $thisweek["end"]);
+  }
+  var_dump($all);
+  return $all;
+}
+
 function sort_week($feed){
   global $_id;
 
-  $week = get_week();  
+  $week = this_week();  
   $prefs = get_prefs("http://rhiaro.co.uk");
   
   $categories = array();
+  $ids = array();
+  $total = 0;
   
   foreach($feed["items"] as $i => $item){
     
@@ -204,6 +221,11 @@ function sort_week($feed){
       $amt = floatval(substr($item["http://vocab.amy.so/blog#cost"], 1));
       $cur = $item["http://vocab.amy.so/blog#cost"][0];
       if($cur == "$"){ // TODO: One day maybe do currency conversion...
+
+        if(!in_array($item["@id"], $ids)){
+          $total += $amt;
+          $ids[] = $item["@id"];
+        }
         
         foreach($prefs["sal:categories"] as $cat){
           $name = $cat["sal:name"];
@@ -227,15 +249,8 @@ function sort_week($feed){
       }
     }
   }
+  $categories["total"] = $total;
   return $categories;
-}
-
-function get_total($subset){
-  $total = 0;
-  foreach($subset as $name => $cat){
-    $total += $cat["total"];
-  }
-  return $total;
 }
 
 function budget_remaining($total, $domain="http://rhiaro.co.uk"){
@@ -261,8 +276,11 @@ if(isset($_SESSION['url'])){
     $_id = "@id";
   }
 }
-
-$week = get_week();
+if(isset($_GET['week'])){
+  $week = $_GET['week'];
+}else{
+  $week = this_week();
+}
 
 ?>
 <!doctype html>
@@ -292,13 +310,16 @@ $week = get_week();
       
 
       <form role="form" id="feed">
-        <p><label for="url" class="neat">Feed</label> <input type="url" class="neat" id="url" name="url" value="<?=isset($_SESSION['url']) ? urldecode($_SESSION['url']) : "http://rhiaro.co.uk/stuff"?>" />
-        <input type="submit" value="Get" /></p>
+        <p><label for="url" class="neat">Feed</label> <input type="url" class="neat" id="url" name="url" value="<?=isset($_SESSION['url']) ? urldecode($_SESSION['url']) : "http://rhiaro.co.uk/stuff"?>" /></p>
+        <p><label for="week" class="neat" placeholder="<?=$week["start"]->format("Y-m-d")?>" value="<?=$week["start"]->format("Y-m-d")?>">Date</label> 
+          <input type="date" name="week" id="week" />
+          <input type="submit" value="Get" />
+        </p>
       </form>
 
       <?if(isset($asfeed)):?>
         <? $results = sort_week($asfeed); ?>
-        <? $left = budget_remaining(get_total($results)); ?>
+        <? $left = budget_remaining($results["total"]); ?>
         <h2>This week is <?=$week["start"]->format("jS M y")?> - <?=$week["end"]->format("jS M y")?></h2>
         <?if($left > 0):?>
           <p class="win">You can spend another $<?=number_format($left, 2)?> this week!</p>
@@ -307,12 +328,14 @@ $week = get_week();
         <?endif?>
 
         <?foreach($results as $cat => $info):?>
-          <h3><?=$cat?>: $<?=number_format($info["total"], 2)?> (<?=count($info["items"])?>)</h3>
-          <ul class="wee">
-            <?foreach($info["items"] as $one):?>
-              <li><a href="<?=$one[$_id]?>"><?=$one["published"]?></a> <?=$one["http://vocab.amy.so/blog#cost"]?> <?=$one["summary"]?></li>
-            <?endforeach?>
-          </ul>
+          <?if(is_array($info)):?>
+            <h3><?=$cat?>: $<?=number_format($info["total"], 2)?> (<?=count($info["items"])?>)</h3>
+            <ul class="wee">
+              <?foreach($info["items"] as $one):?>
+                <li><a href="<?=$one[$_id]?>"><?=$one["published"]?></a> <?=$one["http://vocab.amy.so/blog#cost"]?> <?=$one["summary"]?></li>
+              <?endforeach?>
+            </ul>
+          <?endif?>
         <?endforeach?>
 
       <?elseif(isset($_SESSION['url'])):?>
