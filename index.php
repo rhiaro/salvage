@@ -4,7 +4,21 @@ date_default_timezone_set(file_get_contents("http://rhiaro.co.uk/tz"));
 if(isset($_GET['logout'])){ session_unset(); session_destroy(); header("Location: /salvage"); }
 if(isset($_GET['reset'])){ unset($_SESSION[$_GET['reset']]); }
 
+include "link-rel-parser.php";
+
 $base = "https://apps.rhiaro.co.uk/salvage";
+// if(isset($_GET['code'])){
+//   $auth = auth($_GET['code'], $_GET['state']);
+//   if($auth !== true){ $errors = $auth; }
+//   else{
+//     $response = get_access_token($_GET['code'], $_GET['state']);
+//     if($response !== true){ $errors = $auth; }
+//     else {
+//       header("Location: ".$_GET['state']);
+//     }
+//   }
+// }
+
 $_id = "id";
 $_type = "type";
 
@@ -45,24 +59,6 @@ function get_feed(){
   return $collection;
 
 }
-
-function is_image($item){
-  global $_id;
-  global $_type;
-  if(isset($item[$_type]) && $item[$_type] == "Photo"){
-    return true;
-  }
-  $imgs = array("jpg", "jpeg", "png", "gif");
-  $path = explode("/", $item[$_id]);
-  $uid = array_pop($path);
-  $fn = explode(".", $uid);
-  $ext = strtolower(array_pop($fn));
-  if(in_array($ext, $imgs)){
-    return true;
-  }
-  return false;
-}
-
 function id_from_object($object){
   global $_id;
   return $object[$_id];
@@ -80,89 +76,10 @@ function url_strings_to_array($urls){
   return array_map("url_to_objectid", $ar);
 }
 
-function form_to_update($post){
-  $context = context();
-  $type = array("type" => "Update");
-  $data = array_merge($context, $type);
-  $data['name'] = "Updated an object";
-  $data['published'] = date(DATE_ATOM);
-  $data['object'] = $post;
-  unset($data['object']['submit']);
-  
-  // TODO: Should really handle empty values on the server end I think. 
-  //       ie. It shouldn't set new attributes on the server it receives empty values for attributes that weren't previously set.
-  //       Depends on replace/update policy
-  // foreach($post as $k => $v){
-  //   if(empty($v) || $v == ""){
-  //     unset($data[$k]);
-  //   }
-  // }
-
-  if(isset($data['object']['tags'])){
-    $data['object']['tag'] = url_strings_to_array($data['object']['tags']);
-    unset($data['object']['tags']);
-  }
-
-  $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-  return $json;
-}
-
-function post_to_endpoint($json, $endpoint){
-  $ch = curl_init($endpoint);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/activity+json"));
-  curl_setopt($ch, CURLOPT_HTTPHEADER, array("Authorization: ".$_SESSION['key']));
-  curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
-  $response = Array();
-  parse_str(curl_exec($ch), $response);
-  $info = curl_getinfo($ch);
-  curl_close($ch);
-  
-  return $response;
-}
-
 function get_prefs($domain){
   // TODO: get http://www.w3.org/ns/pim/space#preferencesFile from $domain
-  $prefsjson = '
-{
-  "@context": ["http://vocab.amy.gy/prefs#", {"sal": "http://apps.rhiaro.co.uk/salvage/terms#"}],
-  "applications": 
-  [{
-    "@id": "http://apps.rhiaro.co.uk/salvage",
-    "sal:weeklyBudget": "100",
-    "sal:monthlyBudget": "450",
-    "sal:feed": {
-        "@id": "http://rhiaro.co.uk/stuff"
-      },
-    "sal:categories": [
-      {
-        "sal:name": "Food",
-        "sal:tags": ["food", "groceries", "restaurant", "takeaway"]
-      },
-      {
-        "sal:name": "Medical",
-        "sal:tags": ["medical"]
-      },
-      {
-        "sal:name": "Travel",
-        "sal:tags": ["travel", "transport"]
-      },
-      {
-        "sal:name": "Household",
-        "sal:tags": ["household"]
-      },
-      {
-        "sal:name": "All",
-        "sal:tags": []
-      },
-      {
-        "sal:name": "Split with csarven",
-        "sal:tags": ["csarven"]
-      }
-    ]
-  }]
-}
-  ';
+  $prefsfile = discover_endpoint($domain, "http://www.w3.org/ns/pim/space#preferencesFile");
+  $prefsjson = file_get_contents($prefsfile);
   $prefs = json_decode($prefsjson, true);
   if(isset($prefs["applications"])){
     $apps = $prefs["applications"];
@@ -312,7 +229,7 @@ $prev->modify("- 7 days");
       
 
       <form role="form" id="feed">
-        <p><label for="url" class="neat">Feed</label> <input type="url" class="neat" id="url" name="url" value="<?=isset($_SESSION['url']) ? urldecode($_SESSION['url']) : "http://rhiaro.co.uk/stuff"?>" /></p>
+        <p><label for="url" class="neat">Feed</label> <input type="url" class="neat" id="url" name="url" value="<?=isset($_SESSION['url']) ? urldecode($_SESSION['url']) : ""?>" placeholder="http://rhiaro.co.uk/stuff" /></p>
         <p><label for="week" class="neat">Date</label> 
           <input type="date" name="week" id="week" placeholder="<?=isset($week) ? $week["start"]->format("Y-m-d") : "yyyy-mm-dd"?>" value="<?=isset($week) ? $week["start"]->format("Y-m-d") : ""?>" />
           <input type="submit" value="Get" />
