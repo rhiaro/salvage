@@ -164,14 +164,17 @@ function week_of($date="today"){
   return array("start" => $start, "end" => $end);
 }
 
-function sort_week($feed, $week=null){
+function sort_week($feed=null, $week=null){
   global $_id;
 
-  if(!isset($week)){
-    $week = this_week();  
-  }
   if(isset($_SESSION['me'])){
     $prefs = get_prefs($_SESSION['me']);
+  }
+  if(!isset($feed) && isset($prefs["sal:feed"]["@id"])){
+    $feed = $prefs["sal:feed"]["@id"];
+  }
+  if(!isset($week)){
+    $week = this_week();  
   }
   
   $categories = array();
@@ -248,6 +251,12 @@ if(isset($_SESSION['url'])){
   if(isset($asfeed["@type"])){
     $_type = "@type";
     $_id = "@id";
+  }
+}elseif(isset($_SESSION['me'])){
+  $prefs = get_prefs($_SESSION['me']);
+  if(isset($prefs["sal:feed"]["@id"])){
+    $_SESSION['url'] = $prefs["sal:feed"]["@id"];
+    $asfeed = get_feed();
   }
 }
 if(isset($_GET['week'])){
