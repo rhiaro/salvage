@@ -6,21 +6,73 @@ if(isset($_GET['reset'])){ unset($_SESSION[$_GET['reset']]); }
 
 include "link-rel-parser.php";
 
-$base = "https://apps.rhiaro.co.uk/salvage";
-// if(isset($_GET['code'])){
-//   $auth = auth($_GET['code'], $_GET['state']);
-//   if($auth !== true){ $errors = $auth; }
-//   else{
-//     $response = get_access_token($_GET['code'], $_GET['state']);
-//     if($response !== true){ $errors = $auth; }
-//     else {
-//       header("Location: ".$_GET['state']);
-//     }
-//   }
-// }
+//$base = "https://apps.rhiaro.co.uk/salvage";
+$base = "http://localhost";
+if(isset($_GET['code'])){
+  $auth = auth($_GET['code'], $_GET['state']);
+  if($auth !== true){ $errors = $auth; }
+  else{
+    $response = get_access_token($_GET['code'], $_GET['state']);
+    if($response !== true){ $errors = $auth; }
+    else {
+      header("Location: ".$_GET['state']);
+    }
+  }
+}
 
 $_id = "id";
 $_type = "type";
+
+function auth($code, $state, $client_id="https://apps.rhiaro.co.uk/obtainium"){
+  
+  $params = "code=".$code."&redirect_uri=".urlencode($state)."&state=".urlencode($state)."&client_id=".$client_id;
+  $ch = curl_init("https://indieauth.com/auth");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/x-www-form-urlencoded", "Accept: application/json"));
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+  //curl_setopt($ch, CURLOPT_HEADERFUNCTION, "dump_headers");
+  $response = curl_exec($ch);
+  $response = json_decode($response, true);
+  $_SESSION['me'] = $response['me'];
+  $info = curl_getinfo($ch);
+  curl_close($ch);
+  
+  if(isset($response) && ($response === false || $info['http_code'] != 200)){
+    $errors["Login error"] = $info['http_code'];
+    if(curl_error($ch)){
+      $errors["curl error"] = curl_error($ch);
+    }
+    return $errors;
+  }else{
+    return true;
+  }
+}
+
+function get_access_token($code, $state, $client_id="https://apps.rhiaro.co.uk/obtainium"){
+  
+  $params = "me={$_SESSION['me']}&code=$code&redirect_uri=".urlencode($state)."&state=".urlencode($state)."&client_id=$client_id";
+  $token_ep = discover_endpoint($_SESSION['me'], "token_endpoint");
+  $ch = curl_init($token_ep);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/x-www-form-urlencoded"));
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+  $response = Array();
+  parse_str(curl_exec($ch), $response);
+  $info = curl_getinfo($ch);
+  curl_close($ch);
+  
+  if(isset($response) && ($response === false || $info['http_code'] != 200)){
+    $errors["Login error"] = $info['http_code'];
+    if(curl_error($ch)){
+      $errors["curl error"] = curl_error($ch);
+    }
+    return $errors;
+  }else{
+    $_SESSION['access_token'] = $response['access_token'];
+    return true;
+  }
+  
+}
 
 function discover_endpoint($url, $rel="micropub"){
   if(isset($_SESSION[$rel])){
@@ -118,7 +170,9 @@ function sort_week($feed, $week=null){
   if(!isset($week)){
     $week = this_week();  
   }
-  $prefs = get_prefs("http://rhiaro.co.uk");
+  if(isset($_SESSION['me'])){
+    $prefs = get_prefs($_SESSION['me']);
+  }
   
   $categories = array();
   $ids = array();
