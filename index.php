@@ -193,26 +193,31 @@ function sort_week($feed, $week=null){
           $ids[] = $item["@id"];
         }
         
-        foreach($prefs["sal:categories"] as $cat){
-          $name = $cat["sal:name"];
-          $tags = $cat["sal:tags"];
-          if(!isset($categories[$name])){
-            $categories[$name] = array("total" => 0, "items" => array());
-          }      
-          // TODO: tags shouldn't be like this in feed
-          if(!is_array($item["tag"])){
-            $item["tag"] = array($item["tag"]);
-          }
-          $r = array_intersect($tags, $item["tag"]);
-          
-          if(count($r) > 0){
-            $categories[$name]["items"][] = $item;
-            $categories[$name]["total"] += $amt;
-          }elseif(empty($tags)){ // All
-            $categories[$name]["items"][] = $item;
-            $categories[$name]["total"] += $amt;
-          }
+        if(isset($prefs)){
+          foreach($prefs["sal:categories"] as $cat){
+            $name = $cat["sal:name"];
+            $tags = $cat["sal:tags"];
+            if(!isset($categories[$name])){
+              $categories[$name] = array("total" => 0, "items" => array());
+            }      
+            // TODO: tags shouldn't be like this in feed
+            if(!is_array($item["tag"])){
+              $item["tag"] = array($item["tag"]);
+            }
+            $r = array_intersect($tags, $item["tag"]);
+            
+            if(count($r) > 0){
+              $categories[$name]["items"][] = $item;
+              $categories[$name]["total"] += $amt;
+            }elseif(empty($tags)){ // All
+              $categories[$name]["items"][] = $item;
+              $categories[$name]["total"] += $amt;
+            }
 
+          }
+        }else{
+          $categories["Total"]["items"][] = $item;
+          $categories["Total"]["total"] += $amt;
         }
 
       }
@@ -222,8 +227,8 @@ function sort_week($feed, $week=null){
   return $categories;
 }
 
-function budget_remaining($total, $domain="http://rhiaro.co.uk"){
-  $prefs = get_prefs($domain);
+function budget_remaining($total){
+  $prefs = get_prefs($_SESSION['me']);
   if(isset($prefs["sal:weeklyBudget"])){
     return $prefs["sal:weeklyBudget"] - $total;
   }else{
@@ -281,7 +286,9 @@ $prev->modify("- 7 days");
         </div>
       <?endif?>
       
-
+      <?if(!isset($_SESSION['me'])):?>
+        <p class="fail">Sign in so I can look for your budget preferences.</p>
+      <?endif?>
       <form role="form" id="feed">
         <p><label for="url" class="neat">Feed</label> <input type="url" class="neat" id="url" name="url" value="<?=isset($_SESSION['url']) ? urldecode($_SESSION['url']) : ""?>" placeholder="http://rhiaro.co.uk/stuff" /></p>
         <p><label for="week" class="neat">Date</label> 
@@ -295,11 +302,11 @@ $prev->modify("- 7 days");
       <?if(isset($asfeed)):?>
         <? $results = sort_week($asfeed, $week); ?>
         <? $left = budget_remaining($results["total"]); ?>
-        <h2>This week is <?=$week["start"]->format("jS M y")?> - <?=$week["end"]->format("jS M y")?></h2>
+        <h2>Week of <?=$week["start"]->format("jS M y")?> - <?=$week["end"]->format("jS M y")?></h2>
         <?if($left > 0):?>
           <p class="win">You can spend another $<?=number_format($left, 2)?> this week!</p>
-        <?else:?>
-          <p class="fail">You are $<?=number_format($left, 2)?> over budget, stop.</p>
+        <?elseif($left !== null):?>
+          <p class="fail">You are over budget ($<?=number_format($left, 2)?>), stop.</p>
         <?endif?>
 
         <?foreach($results as $cat => $info):?>
@@ -315,7 +322,6 @@ $prev->modify("- 7 days");
 
       <?elseif(isset($_SESSION['url'])):?>
         <p class="fail">Could not find a valid AS2 feed here.</p>
-
       <?endif?>
 
       <div class="color3-bg inner">
