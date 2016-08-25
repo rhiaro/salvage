@@ -6,8 +6,8 @@ if(isset($_GET['reset'])){ unset($_SESSION[$_GET['reset']]); }
 
 include "link-rel-parser.php";
 
-//$base = "https://apps.rhiaro.co.uk/salvage";
-$base = "http://localhost";
+$base = "https://apps.rhiaro.co.uk/salvage";
+//$base = "http://localhost";
 if(isset($_GET['code'])){
   $auth = auth($_GET['code'], $_GET['state']);
   if($auth !== true){ $errors = $auth; }
@@ -147,6 +147,20 @@ function this_week(){
   return week_of();
 }
 
+function this_month(){
+  $today = new DateTime();
+  $month = $today->format("F");
+  $start = day_of_month("first", "day", $month);
+  $end = day_of_month("last", "day", $month);
+  return array("start" => $start, "end" => $end);
+}
+
+function day_of_month($when, $day, $month){
+  if(!isset($when)) $when = "first";
+  if(!isset($day)) $day = "monday";
+  return new DateTime("$when $day of $month");
+}
+
 function week_of($date="today"){
   // Weeks start at 00:00:00 Monday and end at 23:59:59 Sunday.
 
@@ -175,67 +189,97 @@ function sort_week($feed=null, $week=null){
   }
   if(!isset($week)){
     $week = this_week();  
+    $month = this_month();
+  }else{
+    $m = $week["start"]->format("F");
+    $month["start"] = day_of_month("first", "day", $m);
+    $month["end"] = day_of_month("last", "day", $m);
   }
   
   $categories = array();
   $ids = array();
   $total = 0;
+  $month_total = 0;
   
   foreach($feed["items"] as $i => $item){
     
     $pub = new DateTime($item["published"]);
-    if($pub > $week["start"] && $pub <= $week["end"]){
+    if($pub > $month["start"] && $pub <= $month["end"]){
 
       // Holy shit php you are amazing
       $amt = floatval(substr($item["http://vocab.amy.so/blog#cost"], 1));
       $cur = $item["http://vocab.amy.so/blog#cost"][0];
       if($cur == "$"){ // TODO: One day maybe do currency conversion...
 
-        if(!in_array($item["@id"], $ids)){
-          $total += $amt;
-          $ids[] = $item["@id"];
-        }
-        
-        if(isset($prefs)){
-          foreach($prefs["sal:categories"] as $cat){
-            $name = $cat["sal:name"];
-            $tags = $cat["sal:tags"];
-            if(!isset($categories[$name])){
-              $categories[$name] = array("total" => 0, "items" => array());
-            }      
-            // TODO: tags shouldn't be like this in feed
-            if(!is_array($item["tag"])){
-              $item["tag"] = array($item["tag"]);
-            }
-            $r = array_intersect($tags, $item["tag"]);
-            
-            if(count($r) > 0){
-              $categories[$name]["items"][] = $item;
-              $categories[$name]["total"] += $amt;
-            }elseif(empty($tags)){ // All
-              $categories[$name]["items"][] = $item;
-              $categories[$name]["total"] += $amt;
-            }
+        $month_total += $amt;
 
+        if($pub > $week["start"] && $pub <= $week["end"]){
+          if(!in_array($item["@id"], $ids)){
+            $total += $amt;
+            $ids[] = $item["@id"];
           }
-        }else{
-          $categories["Total"]["items"][] = $item;
-          $categories["Total"]["total"] += $amt;
+          
+          if(isset($prefs)){
+            foreach($prefs["sal:categories"] as $cat){
+              $name = $cat["sal:name"];
+              $tags = $cat["sal:tags"];
+              if(!isset($categories[$name])){
+                $categories[$name] = array("total" => 0, "items" => array());
+              }      
+              // TODO: tags shouldn't be like this in feed
+              if(!is_array($item["tag"])){
+                $item["tag"] = array($item["tag"]);
+              }
+              $r = array_intersect($tags, $item["tag"]);
+              
+              if(count($r) > 0){
+                $categories[$name]["items"][] = $item;
+                $categories[$name]["total"] += $amt;
+              }elseif(empty($tags)){ // All
+                $categories[$name]["items"][] = $item;
+                $categories[$name]["total"] += $amt;
+              }
+
+            }
+          }else{
+            $categories["Total"]["items"][] = $item;
+            $categories["Total"]["total"] += $amt;
+          }
         }
 
       }
     }
   }
-  $categories["total"] = $total;
+  $categories["total"] = array("week" => $total, "month" => $month_total);
   return $categories;
 }
 
-function budget_remaining($total){
+function budget_remaining($total, $week){
   $prefs = get_prefs($_SESSION['me']);
+  $budget = array();
+  if(isset($prefs["sal:monthlyBudget"])){
+    $budget["month"] = relative_budget_remaining($total["month"], $week["start"], $prefs["sal:monthlyBudget"]);
+  }
   if(isset($prefs["sal:weeklyBudget"])){
-    return $prefs["sal:weeklyBudget"] - $total;
+    $budget["week"] = $prefs["sal:weeklyBudget"] - $total["week"];
+  }
+  return $budget;
+}
+
+function relative_budget_remaining($total, $week_start, $monthly_budget){
+  $month = $week_start->format("F Y");
+  $month_start = day_of_month("first", "day", $month);
+  $month_end = day_of_month("last", "day", $month);
+
+  $monthly_remaining = $monthly_budget - $total;
+  $days_remaining = $month_end->format("j") - $week_start->format("j") +1;
+  $weeks_remaining = ceil($days_remaining / 7);
+  $per_week_remaining = $monthly_remaining / $weeks_remaining;
+
+  if($per_week_remaining > 100){
+    return 100;
   }else{
-    return null;
+    return $per_week_remaining;
   }
 }
 
@@ -310,13 +354,26 @@ $prev->modify("- 7 days");
 
       <?if(isset($asfeed)):?>
         <? $results = sort_week($asfeed, $week); ?>
-        <? $left = budget_remaining($results["total"]); ?>
+        <? $left = budget_remaining($results["total"], $week); ?>
+        <? $week_max = $left["month"] - $results["total"]["week"]; ?>
         <h2>Week of <?=$week["start"]->format("jS M y")?> - <?=$week["end"]->format("jS M y")?></h2>
-        <?if($left > 0):?>
-          <p class="win">You can spend another $<?=number_format($left, 2)?> this week!</p>
-        <?elseif($left !== null):?>
-          <p class="fail">You are over budget ($<?=number_format($left, 2)?>), stop.</p>
+        <?if($left["week"] > 0):?>
+          <p class="win">You are under your weekly budget by $<?=number_format($left["week"], 2)?> this week!</p>
         <?endif?>
+        <?if($left["month"] > 0):?>
+          <?if($left["week"] > 0):?>
+            <p class="win">You can spend another $<?=number_format($left["week"], 2)?> this week!</p>
+          <?else:?>
+            <p class="fail">You are over your weekly budget ($<?=number_format($left["week"], 2)?>), stop.</p>
+          <?endif?>
+          <?if($week_max > 0):?>
+            <p class="win">You have an additional $<?=number_format($week_max)?> from underspending earlier this month.</p>
+          <?endif?>
+        <?elseif($left !== null):?>
+          <p class="fail"><strong>Monthly budget breach alert:</strong> spent $<?=number_format($results["total"]["month"], 2)?> this month.</p>
+        <?endif?>
+
+        <?=var_dump($left["month"])?>
 
         <?foreach($results as $cat => $info):?>
           <?if(is_array($info)):?>
