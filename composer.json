@@ -1,0 +1,23 @@
+{
+    "name": "rhiaro/salvage",
+    "version": "0.0.1",
+    "license": "MIT",
+    "require": {
+      "rmccue/requests": ">=1.0",
+      "phpish/link_header": "dev-master",
+      "easyrdf/easyrdf": "*",
+      "ml/json-ld": "1.*"
+    },
+    "autoload": {
+      "files": [
+          "src/salvage.php",
+          "src/rdf.php"
+        ]    
+    },
+    "authors": [
+      {
+        "name": "Amy Guy",
+        "homepage": "https://rhiaro.co.uk/"
+      }
+    ]
+}
